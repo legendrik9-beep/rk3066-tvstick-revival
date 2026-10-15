@@ -18,7 +18,7 @@ Newest entries first. Entries marked (backfilled) were written after the fact.
   Output: `dump_20261014_202125`
 - Recon run 2 (`-RegDump`): register dumps (CRU, GRF, DDR PCTL/PUBL, GPIO).
   Output: `dump_20261014_204231`
-- MD5 comparison device vs. host for all 8 partition images: all match.
+- MD5 comparison device vs. host for all 8 partition images: 100% MATCH.
 - Analysis of dumps: SoC, RAM, PMIC (TPS65910), NAND, WiFi, partition table,
   boot image header.
 
