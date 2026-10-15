@@ -1,13 +1,19 @@
-# Journal
+Journal
 
 Newest entries first. Entries marked (backfilled) were written after the fact.
 
-## 2026-10-15
+
+
+2026-10-15
 - Wrote README with verified/inferred status per spec.
 - Found the `user` partition offset error (3252 MiB, not 2996 MiB); 256 MiB gap
   after `system` still unexplained.
 
-## 2026-10-14
+2026-10-14
+- Opened the case, photographed PCB, noted chip markings
+  (SoC, RAM, NAND, WiFi module).
+- ADB with root confirmed (`uid=0`), USB stick as dump target.
+- UART not done, no adapter available yet.
 - Recon run 1 (`-ScanI2C`): partition images, system info, I2C scan.
   Output: `dump_20261014_202125`
 - Recon run 2 (`-RegDump`): register dumps (CRU, GRF, DDR PCTL/PUBL, GPIO).
@@ -16,8 +22,5 @@ Newest entries first. Entries marked (backfilled) were written after the fact.
 - Analysis of dumps: SoC, RAM, PMIC (TPS65910), NAND, WiFi, partition table,
   boot image header.
 
-## (date) (backfilled)
-- Opened the case, photographed PCB, noted chip markings
-  (SoC, RAM, NAND, WiFi module).
-- ADB with root confirmed (`uid=0`), USB stick as dump target.
-- UART not done, no adapter available yet.
+
+
