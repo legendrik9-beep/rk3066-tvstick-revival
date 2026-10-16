@@ -2,9 +2,17 @@ Journal
 
 Newest entries first. Entries marked (backfilled) were written after the fact.
 
-
+2026-10-16
+- Mainline 6.6.159 + custom DT boots from `recovery` (stage A). CPU, RAM,
+  DRM/HDMI 1080p, Lima probe, TPS65910, USB host and USB gadget serial work.
+- Found the loader's SHA-1 check on the boot image; added `pack_recovery_image.py`.
+- Found three flashing pitfalls on stock Android (su, flash_image, mtdblock vs mtd char device).
+- Verified flash result with cache drop + `cmp`.
 
 2026-10-15
+- Set up WSL2 cross-compile environment, built first mainline kernel.
+- Derived GPIO IRQ mapping from the stock kernel and wrote `rk3066a-hotack.dts`.
+- (existing entries: README written, user partition offset error found)
 - Wrote README with verified/inferred status per spec.
 - Found the `user` partition offset error (3252 MiB, not 2996 MiB); 256 MiB gap
   after `system` still unexplained.
