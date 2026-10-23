@@ -1,0 +1,70 @@
+# Build V1.0 (internal: Build #38)
+
+First stable, usable desktop on the RK3066 TV stick.
+Date: 23.10.2026
+
+**Legend:** ✅ observed on the device · ⚠️ not verified
+
+## Summary
+
+Mainline Linux 6.6.159 boots from the `recovery` partition. An Alpine Linux
+rootfs image on the SD card provides Weston (Wayland) with the CPU pixman
+renderer. Output is 1280x720 at 60 Hz, tear-free, with USB keyboard and mouse.
+
+## Contents
+
+| Component | Details |
+|---|---|
+| Kernel | Linux 6.6.159, dual core SMP, custom DT `rk3066a-hotack.dts` |
+| Kernel image | `recovery-test.img` (~12.7 MB, ANDROID! format with loader SHA-1 patched) |
+| Userspace | Alpine Linux v3.20 (armv7, musl), `rootfs.img` (1 GB) on the SD card (FAT32) |
+| Compositor | Weston 12.0.4, DRM backend, pixman renderer, `xwayland=false` |
+| Display | 1280x720@60 Hz, pixel clock 74.25 MHz, HDMI-A-1 |
+| Input | Logitech USB receiver (keyboard + mouse) via libinput, `udevd` + `seatd` autostart |
+| Panel | bottom, 24 h clock, launchers: terminal, wallpaper tool |
+| Wallpaper tool | text menu in a terminal: 7 solid colors, default image, custom image from the SD card |
+| Console | gadget serial on USB OTG (`/dev/ttyGS0`, appears as COM port on Windows) |
+| Kernel cmdline | `consoleblank=0` |
+| CPU clock | ⚠️ capped at 1.008 GHz in the DT; last session locked it to 816 MHz. Check the final value with `cpufreq` before release |
+
+## Verified
+
+- ✅ Tear-free output (Weston page flips on VBLANK)
+- ✅ Smooth mouse and window movement (subjective, about 60 FPS)
+- ✅ Keyboard and mouse work from boot without manual steps
+- ✅ Stable at idle, no artifacts in the last session
+
+## Known limitations
+
+- No 3D/GPU acceleration. Lima probes, but GL clients caused artifacts.
+- 1080p is unstable on the tested monitor (Samsung Odyssey G5), so 720p is forced.
+- No Xwayland: X11 applications do not run.
+- No browser or file manager. Dillo, Badwolf and PCManFM each triggered
+  artifacts or freezes (cause not proven).
+- The stick always boots Android first. Start Linux with `adb reboot recovery`.
+- Needs stock Android for flashing and for copying `rootfs.img` to the SD card.
+- No temperature monitoring or voltage scaling (DVFS), so the clock stays capped.
+
+## How to run (tested on this device only)
+
+1. Boot stock Android, enable USB debugging, connect ADB.
+2. Copy `rootfs.img` to the SD card (FAT32), then `sync`.
+3. Flash the kernel image to the character device in 16 KB chunks:
+   ```sh
+   dd if=recovery-test.img of=/dev/mtd/mtd3 bs=16384 && sync
+   ```
+4. Verify after `echo 3 > /proc/sys/vm/drop_caches` (see [timeline](../docs/timeline.md)).
+5. `adb reboot recovery`
+6. If the screen shows a FAT error, check the SD card (`fsck_msdos`).
+
+## Files and checksums
+
+| File | MD5 |
+|---|---|
+| `recovery-test.img` | fill in (`Get-FileHash -Algorithm MD5`) |
+| `rootfs.img` | fill in |
+
+## Recovery
+
+The stock `kernel` and `boot` partitions are untouched. A power cycle boots
+Android. The loader restores the stock recovery if the image check fails.
