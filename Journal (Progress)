@@ -1,34 +1,86 @@
-Journal
+# Journal
 
-Newest entries first. Entries marked (backfilled) were written after the fact.
+Newest entries first. Short version of the project history; details and
+reasoning are in [timeline.md](timeline.md).
+Entries marked (backfilled) were written after the fact.
+✅ = observed on the device, ⚠️ = hypothesis / not proven.
 
-2026-10-16
-- Mainline 6.6.159 + custom DT boots from `recovery` (stage A). CPU, RAM,
-  DRM/HDMI 1080p, Lima probe, TPS65910, USB host and USB gadget serial work.
+## YYYY-MM-DD (backfilled): V1.0 released (Build #38)
+- Saved Build #38 as V1.0: full ZIP (with 1 GB rootfs) and quick-restore ZIP.
+- State: Weston (Wayland, pixman) 1280x720@60, tear-free, USB keyboard and
+  mouse, bottom panel, terminal and wallpaper launcher, `xwayland=false`.
+- Details: [../builds/v1.0.md](../builds/v1.0.md)
+
+## YYYY-MM-DD (backfilled): Extra programs break the desktop
+- Added Zenity, PCManFM, Dillo, Badwolf. Each led to stripes or a black screen
+  with a flickering pink right edge. ✅
+- Causes (Xwayland, EGL access, `libelogind` replacing `libseat`) are ⚠️, not isolated.
+- Rolled back to the clean rootfs backup, disabled Xwayland, removed the
+  browser and file manager.
+- SD card FAT32 error after a 1 GB `adb push` ("clusters badly computed"),
+  fixed with `fsck_msdos`. Lesson: `sync` and check the card.
+- Wallpaper launcher did not start: Weston passes the launcher path as one
+  string. Fixed with a wrapper script.
+
+## 2026-10-19: rootfs backup
+- Backup of the working rootfs (`rootfs.img.gz`, MD5 `60469337...`), later used
+  for the rollback.
+
+## YYYY-MM-DD (backfilled): Builds #36 and #37, Wayland
+- Switched from Xorg to Weston 12.0.4 (DRM backend, pixman). Tearing and
+  slowdowns gone. ✅
+- No input at first: `udevd` was not running. Now `udevd` and `seatd`
+  autostart. ✅
+- `repaint-window` 7 -> 16 ms: feels like 60 FPS instead of 30. ✅ (subjective)
+- Stripes after idle time: `consoleblank=0` added, no recurrence. ⚠️ cause
+- Overheating was suggested and ruled out (copper heat sink, stick feels cool).
+
+## YYYY-MM-DD (backfilled): Builds #33-#35, GPU and tear-free attempts with Xorg
+- Xorg `modesetting` on `/dev/dri/card0`: monitor lost signal until the mode
+  was locked to 720p. ✅
+- Mesa Lima + Glamor: green stripes over the whole screen. Reverted. ✅
+- `es2_info` next to an fbdev Xorg caused stripes and needed a power cycle. ✅
+- `PageFlip`, `DoubleShadow`, `xfwm4` compositor, outline moves, IRQ pinning:
+  no clear improvement. Xorg 1.21 `modesetting` has no `TearFree` option. ✅
+- Conclusion: Xorg without a working GPU path stays tearing. Next: Wayland.
+
+## YYYY-MM-DD (backfilled): Build #32, stability
+- Dual core on, CPU capped at 1.008 GHz, display locked to 720p60, L2 option
+  `arm,full-line-zero-disable`. Crashes and artifacts gone in normal use. ✅
+- Build #32 archived (image, DTB, DTS, patch, build script, dmesg log).
+
+## YYYY-MM-DD (backfilled): Builds #25-#31, X11 desktop on fbdev
+- Xorg (fbdev), Openbox, tint2, xterm on the SD card rootfs. USB keyboard and
+  mouse work. 3D and DRM deliberately disabled.
+- `imprecise external abort (0x1406)` in `libpixman` when moving windows fast.
+  The NEON workaround did not help. Capping the clock did. Cause (undervoltage
+  without PMIC scaling) is ⚠️ a hypothesis.
+- Access via USB gadget serial (`COM5`), no UART soldering needed.
+
+## 2026-10-16: Stage A reached
+- Mainline 6.6.159 + custom DT boots from `recovery` with a BusyBox initramfs.
+  CPU, RAM, DRM/HDMI, Lima probe, TPS65910, USB host and gadget serial work. ✅
 - Found the loader's SHA-1 check on the boot image; added `pack_recovery_image.py`.
-- Found three flashing pitfalls on stock Android (su, flash_image, mtdblock vs mtd char device).
-- Verified flash result with cache drop + `cmp`.
+- Found three flashing pitfalls on stock Android (`su`, `flash_image`,
+  `mtdblock` vs. `mtd` character device). Verified flashing with cache drop + `cmp`.
 
-2026-10-15
-- Set up WSL2 cross-compile environment, built first mainline kernel.
-- Derived GPIO IRQ mapping from the stock kernel and wrote `rk3066a-hotack.dts`.
-- (existing entries: README written, user partition offset error found)
+## 2026-10-15
+- Set up WSL2 cross-compile environment, built the first mainline kernel.
+- Derived the GPIO IRQ mapping from the stock kernel and wrote `rk3066a-hotack.dts`.
 - Wrote README with verified/inferred status per spec.
 - Found the `user` partition offset error (3252 MiB, not 2996 MiB); 256 MiB gap
   after `system` still unexplained.
 
-2026-10-14
+## 2026-10-14
 - Opened the case, photographed PCB, noted chip markings
-  (SoC, RAM, NAND, WiFi module).
+  (SoC, RAM, NAND, WiFi module). (backfilled)
 - ADB with root confirmed (`uid=0`), USB stick as dump target.
-- UART not done, no adapter available yet.
+- UART not done, no adapter available.
 - Recon run 1 (`-ScanI2C`): partition images, system info, I2C scan.
   Output: `dump_20261014_202125`
 - Recon run 2 (`-RegDump`): register dumps (CRU, GRF, DDR PCTL/PUBL, GPIO).
   Output: `dump_20261014_204231`
-- MD5 comparison device vs. host for all 8 partition images: 100% MATCH.
+- MD5 comparison device vs. host for all 8 partition images: match
+  (recompute with `Get-FileHash` before relying on it).
 - Analysis of dumps: SoC, RAM, PMIC (TPS65910), NAND, WiFi, partition table,
   boot image header.
-
-
-
