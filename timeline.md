@@ -364,12 +364,26 @@ wrong, and how it was solved. Short version: [journal.md](journal.md).
 - [ ] Verify the NAND Maskrom pins against the datasheet
 - [ ] UART boot log (optional, gadget serial works)
 - [ ] Stage B: mainline U-Boot
+- [ ] 1080p (explain the difference to the Stage A console)
+- [ ] GPU acceleration (Lima probes, GL clients cause artifacts)
+- [ ] Clock above 1.008 GHz: PMIC node and DVFS, check the `i2c1` status in the DT
+- [ ] Browser and file manager without artifacts
+- [ ] Isolate the cause of the stripes (Xwayland vs. EGL)
+- [ ] WiFi (RTL8188ETV)
+- [ ] Autonomous boot without Android (Stage B, U-Boot)
+- [ ] Fix the pinctrl / gpio-keys error, re-check the GPIO bank mapping
+- [ ] Explain the 256 MiB gap before the `user` partition
+- [ ] Verify the NAND Maskrom pins against the datasheet
 
 ## Lessons learned
 
-1. Check the loader's behavior before debugging the kernel. The recovery loop
-   had nothing to do with the kernel.
-2. Verify flash writes after dropping caches and via the character device. A
-   matching MD5 from `mtdblock` can be a cache artifact.
+1. Check the loader's behavior before debugging the kernel.
+2. Verify flash writes after dropping caches and via the character device.
 3. On Rockchip NAND, write whole 16 KB pages aligned to 4 MB erase blocks.
 4. Keep a safe boot path: testing from `recovery` kept the stock system intact.
+5. Change one thing per build and archive every build. Rollbacks were needed
+   several times.
+6. Treat explanations as hypotheses. Several "causes" in this project
+   (NEON, overheating, blanking, thermal) were later revised. Measure first.
+7. `sync` and check the SD card after every large `adb push`.
+8. Test new userspace programs one at a time; one package can break the stack.
