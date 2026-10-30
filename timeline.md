@@ -207,6 +207,150 @@ wrong, and how it was solved. Short version: [journal.md](journal.md).
   - `rockchip-pinctrl` / `gpio-keys: Error applying setting, reverse things back`
     on boot. To be fixed in the next DT revision.
 
+## Phase 6: X11 desktop on fbdev (Builds #25-#31, YYYY-MM-DD)
+
+- **Goal**
+  - Get a stable picture plus USB keyboard and mouse, without kernel panics.
+  - 3D acceleration and DRM were deliberately disabled in the start scripts
+    (`rm -rf /dev/dri`) to exclude error sources.
+- **Setup**
+  - Alpine rootfs on the SD card, Xorg with the `fbdev` driver, Openbox,
+    tint2, xterm. Logitech USB receiver (keyboard + mouse) works.
+  - Console access over USB gadget serial (shown as `COM5` on the Windows host).
+- **Build #31 state**
+  - `ShadowFB` enabled: removed artifacts when moving the mouse, deleting
+    characters and when the clock changed. ✅
+  - L2C-310 `AUX_CTRL 0x36050001` (early-BRESP bit cleared). ✅ The log says
+    this prevented the asynchronous aborts seen in Build #28 after 22 minutes. ⚠️ not isolated as the cause.
+  - Auto-restart loop: Xorg is restarted within 2 s if it exits. ✅
+- **Problem: desktop crashes when windows are moved fast**
+  - dmesg: `Unhandled fault: imprecise external abort (0x1406)`. ✅
+  - The fault address lay inside `libpixman`. ✅
+  - Hypothesis 1 (wrong): ARM NEON store bug. A workaround
+    (`PIXMAN_DISABLE=arm-neon`) did **not** stop the crash. ✅
+  - Hypothesis 2: the CPU ran at up to 1.416 GHz while the voltage stayed at
+    the bootloader value, because the PMIC node on `i2c1` was disabled in the
+    DT at that time. ⚠️ plausible, not measured.
+    Evidence: after capping the clock the crash did not return. ✅
+  - Check: the Stage A log says the PMIC was configured, this log says it was
+    disabled. Verify in the current `.dts`.
+
+---
+
+## Phase 7: Stability and performance (Build #32, YYYY-MM-DD)
+
+- **Tests done live on the device**
+  - Governor `performance`, max 600 MHz: no crash, but visible lag. ✅
+  - 1.008 GHz: usable. ✅
+  - Artifacts remained with heavy programs (for example `tint2conf`) at 1080p. ✅
+- **Build #32 changes**
+  - Dual core enabled (`nosmp` removed). ✅
+  - CPU clocks above 1.008 GHz removed from the DT. ✅
+  - Display locked to 1280x720@60 (74.25 MHz) instead of 1080p. ✅
+  - `arm,full-line-zero-disable` on the L2 controller. ✅
+  - NEON re-enabled (the earlier workaround was dropped). ✅
+- **Result**
+  - Crashes and artifacts gone in normal use. ✅
+  - Explanation for the artifacts: display scanout bandwidth at 1080p
+    (about 500 MB/s versus 221 MB/s at 720p). ⚠️ calculated, not measured.
+- **Archive**
+  - Build #32 was saved (image, DTB, DTS, kernel patch, build script, dmesg log).
+  - Later builds could always be rolled back to it.
+
+---
+
+## Phase 8: Attempts at GPU and tear-free output with Xorg (Builds #33-#35, YYYY-MM-DD)
+
+- **Problem**
+  - Low frame rate and visible tearing with `fbdev`. ✅
+  - Cause of tearing: `fbdev` has no VSync or page flipping. ✅ (by design)
+- **Attempt 1: `es2_info` while Xorg ran on fbdev**
+  - Result: picture disappeared, stripes, power cycle needed. ✅
+  - Explanation (shared AXI bus blocked) ⚠️ not proven.
+  - Lesson: do not start GL clients next to an fbdev Xorg.
+- **Attempt 2 (Build #33): Xorg `modesetting` on `/dev/dri/card0`**
+  - The monitor (Samsung Odyssey G5) went on and off. ✅
+  - Xorg switched to the monitor's preferred 1080p mode. ✅
+    Fix: lock the mode to 1280x720 in `xorg.conf`. ✅
+  - With the mode locked the picture was stable but showed strong slowdowns
+    and occasional tearing. ✅
+  - A test without software cursor froze the bus. ✅ Stock `build.prop` has
+    `cursor.sw=true` and `cursor.hw=false`. ✅ That the hardware cursor is
+    broken on the RK3066 is ⚠️ a conclusion, not tested separately.
+- **Attempt 3 (Build #34): Mesa Lima + Glamor**
+  - Result: green horizontal stripes over the whole screen. ✅
+  - Explanation (tiled Mali buffers vs. linear scanout of the VOP) ⚠️ unverified.
+  - Reverted.
+- **Attempt 4 (Build #35): `modesetting` without acceleration + NEON**
+  - Artifact-free, but slowdowns and strong tearing remained. ✅
+  - Findings during the tests, partly contradicting earlier claims:
+    - `PageFlip` and `DoubleShadow` do not give tear-free output without
+      GL acceleration. The log says the Xorg 1.21 `modesetting` binary
+      contained no `TearFree` string. ✅
+    - Idle governor `ondemand` at 312 MHz was real, but not the main cause. ✅
+    - A 45 s measurement while dragging a window: both cores 90-99 % idle,
+      Xorg mostly in uninterruptible sleep (`D`). ✅
+      Interpretation (blocking page flips with `DoubleShadow`) ⚠️.
+  - Further tries (disable `DoubleShadow`, `xfwm4` compositor with XPresent,
+    outline window moves, IRQ 44 pinned to CPU1 and Xorg pinned to CPU0)
+    brought no clear improvement. ✅ (subjective, sometimes worse)
+    The "8,000 USB interrupts/s on CPU0" explanation is ⚠️.
+- **Conclusion**
+  - Xorg without a working GPU path cannot be made tear-free here.
+  - Decision: try a Wayland compositor with CPU rendering.
+
+---
+
+## Phase 9: Wayland, Build #37 and V1.0 (Builds #36-#38, YYYY-MM-DD)
+
+- **Build #36: Weston**
+  - Weston 12.0.4, DRM backend, pixman renderer (CPU, NEON), 1280x720@60. ✅
+  - Tearing gone, slowdowns gone, CPU about 95 % idle. ✅
+  - **Problem: no keyboard or mouse**
+    - Weston logged `no input devices found`. ✅
+    - Cause: `udevd` was not running, so libinput saw no devices. ✅
+    - Fix: start `udevd` and `seatd` automatically. ✅
+  - The rootfs (1 GB) was copied to the SD card with `adb push` (about 3 min).
+- **Build #37: smoothness and idle fixes**
+  - Felt like 30 FPS. Weston `repaint-window` raised from 7 ms to 16 ms. ✅
+    Now feels like 60 FPS. ✅ (subjective, not measured)
+  - Picture turned into stripes after some idle time. ✅
+    Attributed to console blanking or DPMS. ⚠️
+    Fix: `consoleblank=0` in the kernel cmdline, no recurrence reported. ✅
+  - Overheating was suggested and rejected: the SoC has a copper heat sink and
+    the stick felt cooler than under Android. ✅
+  - Governor `ondemand`, `up_threshold=50`. Later the clock was locked to
+    816 MHz as a precaution. ⚠️ final value to be checked.
+- **Detour: extra desktop programs broke the system**
+  - Zenity and PCManFM were added for a wallpaper manager and file manager.
+  - Stripes or a black screen with a flickering pink right edge returned. ✅
+  - The log reports that Zenity pulled in `libelogind`, which replaced
+    `libseat`. ⚠️ from the log, package diff not reviewed.
+  - Rolled back to the clean rootfs backup of 19 Oct (MD5 `60469337...`). ✅
+- **Problem: `FAT-fs (mmcblk0p1): error, clusters badly computed`**
+  - After the 1 GB push under Android the FAT32 card was inconsistent;
+    Linux mounted it read-only and boot stopped. ✅
+  - Fix: `fsck_msdos`. ✅
+  - Lesson: `sync` after every push, check the card when it fails.
+- **Problem: stripes after launching PCManFM, Dillo and Badwolf**
+  - Each launch led to stripes within seconds to minutes. ✅
+  - Suspected causes: Xwayland writing into the framebuffer, or WebKit
+    opening EGL on `/dev/dri/card0`. ⚠️ neither was isolated.
+  - Fix: `xwayland=false`, no browser, no file manager.
+- **Other findings**
+  - A launcher with arguments did not start. Weston passes the path as a
+    single string. Fixed with a wrapper script. ✅
+  - After a power cycle the stick boots stock Android, which uses 1080p.
+    On the tested monitor this gave a black screen with a flickering right
+    edge. ✅ Start Linux with `adb reboot recovery`.
+    ⚠️ Stage A showed 1080p on the Linux console, so the 1080p problem
+    is not explained yet.
+- **Result: Build #38 = V1.0**
+  - Weston with bottom panel, 24 h clock, terminal launcher and wallpaper
+    launcher (text menu: 7 solid colors, default image, custom image).
+  - Saved as a full ZIP (with 1 GB rootfs) and a quick-restore ZIP (kernel,
+    scripts, config, patches).
+  - Details: [../builds/v1.0.md].
 ---
 
 ## Open items
