@@ -2,7 +2,7 @@
 This repo is about reverse engineering and mainline Linux bring-up for the Rockchip RK3066 Android TV box/stick
 
 
-First Build published now! Check build_1.0 !!!
+First Build published now! Check releases !!!
 
 
 My specific device:
